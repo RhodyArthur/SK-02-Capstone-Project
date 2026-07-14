@@ -1,0 +1,99 @@
+-- ============================================================
+-- Deliverable 2: Physical DDL
+-- MedInsure Healthcare Claims Data Warehouse
+-- ============================================================
+-- Order of execution:
+--   1. Dimension tables (Type 1 reference dims first, then SCD2 dims, then dim_date)
+--   2. Placeholder "Not Applicable" rows for nullable-in-practice dimension FKs
+--   3. Fact tables
+--   4. Indexes on all fact table foreign keys
+-- ============================================================
+
+
+-- ============================================================
+-- 1. DIMENSION TABLES
+-- ============================================================
+
+-- ---------- dim_plan (Type 1) ----------
+CREATE TABLE dim_plan (
+    plan_sk       SERIAL PRIMARY KEY,
+    plan_id       VARCHAR(20)   NOT NULL,      -- natural key from plan_types source table
+    plan_type     VARCHAR(10)   NOT NULL,      -- HMO, PPO, EPO, HDHP
+    deductible    DECIMAL(10,2) NOT NULL,
+    oop_max       DECIMAL(10,2) NOT NULL
+);
+
+-- ---------- dim_diagnosis (Type 1) ----------
+CREATE TABLE dim_diagnosis (
+    diagnosis_sk   SERIAL PRIMARY KEY,
+    icd10_code     VARCHAR(10)  NOT NULL,   -- e.g. 'E11.9'
+    description    TEXT         NOT NULL,   -- free text, no practical length cap needed
+    category       VARCHAR(100) NOT NULL    -- ICD-10 category hierarchy grouping
+);
+
+-- ---------- dim_procedure (Type 1) ----------
+CREATE TABLE dim_procedure (
+    procedure_sk   SERIAL PRIMARY KEY,
+    cpt_code       VARCHAR(5)   NOT NULL,   -- CPT codes are always 5 characters
+    description    TEXT         NOT NULL,
+    category       VARCHAR(100) NOT NULL
+);
+
+-- ---------- dim_member (Type 2 — tracks plan/demographic changes) ----------
+CREATE TABLE dim_member (
+    member_sk         SERIAL PRIMARY KEY,
+    member_id         VARCHAR(20)  NOT NULL,     -- natural key from members source table
+    name              VARCHAR(100) NOT NULL,
+    date_of_birth     DATE         NOT NULL,
+    gender            VARCHAR(10)  NOT NULL,
+    effective_start   DATE         NOT NULL,
+    effective_end     DATE         NOT NULL DEFAULT '9999-12-31',  -- placeholder for "still current"
+    is_current        BOOLEAN      NOT NULL DEFAULT TRUE
+);
+
+-- ---------- dim_provider (Type 2 — tracks network status changes) ----------
+CREATE TABLE dim_provider (
+    provider_sk       SERIAL PRIMARY KEY,
+    provider_id       VARCHAR(20)  NOT NULL,      -- natural key from providers source table
+    provider_name     VARCHAR(100) NOT NULL,
+    specialty         VARCHAR(100) NOT NULL,
+    network_status    VARCHAR(20)  NOT NULL,      -- 'In-Network' / 'Out-of-Network'
+    effective_start   DATE         NOT NULL,
+    effective_end     DATE         NOT NULL DEFAULT '9999-12-31',
+    is_current        BOOLEAN      NOT NULL DEFAULT TRUE
+);
+
+-- ---------- dim_date (Type 1 — day-level grain, calendar year only, no fiscal calendar) ----------
+CREATE TABLE dim_date (
+    date_sk         INT         PRIMARY KEY,      -- YYYYMMDD integer, e.g. 20260713 (assigned deliberately, NOT auto-generated)
+    full_date       DATE        NOT NULL,
+    day_of_week     VARCHAR(10) NOT NULL,          -- 'Monday', 'Tuesday', etc.
+    day_of_month    SMALLINT    NOT NULL,          -- 1-31
+    month_name      VARCHAR(15) NOT NULL,          -- 'January', for display
+    month_number    SMALLINT    NOT NULL,          -- 1-12, for correct sorting/filtering
+    quarter         SMALLINT    NOT NULL,          -- 1-4
+    year            SMALLINT    NOT NULL,
+    is_weekend      BOOLEAN     NOT NULL
+);
+
+-- Populate dim_date using GENERATE_SERIES (2020-01-01 through 2030-12-31)
+INSERT INTO dim_date (
+    date_sk, full_date, day_of_week, day_of_month,
+    month_name, month_number, quarter, year, is_weekend
+)
+SELECT
+    TO_CHAR(d, 'YYYYMMDD')::INT       AS date_sk,
+    d                                  AS full_date,
+    TO_CHAR(d, 'Day')                  AS day_of_week,
+    EXTRACT(DAY FROM d)::SMALLINT      AS day_of_month,
+    TO_CHAR(d, 'Month')                AS month_name,
+    EXTRACT(MONTH FROM d)::SMALLINT    AS month_number,
+    EXTRACT(QUARTER FROM d)::SMALLINT  AS quarter,
+    EXTRACT(YEAR FROM d)::SMALLINT     AS year,
+    (EXTRACT(ISODOW FROM d) IN (6, 7)) AS is_weekend
+FROM GENERATE_SERIES(
+        '2020-01-01'::DATE,
+        '2030-12-31'::DATE,
+        INTERVAL '1 day'
+     ) AS d;
+

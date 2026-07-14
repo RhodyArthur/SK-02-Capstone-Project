@@ -40,12 +40,20 @@ CREATE TABLE dim_procedure (
 );
 
 -- ---------- dim_member (Type 2 — tracks plan/demographic changes) ----------
+-- NOTE: plan_id here represents the member's *plan enrollment* as a tracked
+-- demographic attribute of the member (their history of plan changes).
+-- This is distinct from fact_claim.plan_sk -> dim_plan, which records which
+-- plan actually applied to a specific claim. Both can coexist without
+-- snowflaking: dim_member.plan_id is descriptive history, not a join path.
 CREATE TABLE dim_member (
     member_sk         SERIAL PRIMARY KEY,
     member_id         VARCHAR(20)  NOT NULL,     -- natural key from members source table
     name              VARCHAR(100) NOT NULL,
     date_of_birth     DATE         NOT NULL,
     gender            VARCHAR(10)  NOT NULL,
+    plan_id           VARCHAR(20)  NOT NULL,     -- tracked: member's enrolled plan (SCD2)
+    state             VARCHAR(2)   NOT NULL,     -- tracked: member's home state (SCD2)
+    zip_code          VARCHAR(10)  NOT NULL,     -- tracked: member's zip code (SCD2)
     effective_start   DATE         NOT NULL,
     effective_end     DATE         NOT NULL DEFAULT '9999-12-31',  -- placeholder for "still current"
     is_current        BOOLEAN      NOT NULL DEFAULT TRUE

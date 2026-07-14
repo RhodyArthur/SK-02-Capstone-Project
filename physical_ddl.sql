@@ -97,3 +97,20 @@ FROM GENERATE_SERIES(
         INTERVAL '1 day'
      ) AS d;
 
+-- ============================================================
+-- 2. "NOT APPLICABLE" PLACEHOLDER ROWS
+-- ============================================================
+-- Inserted so that fact table FKs can always resolve to a real dimension row
+-- (surrogate key -1), instead of allowing NULL, which would silently drop
+-- rows from INNER JOIN-based reports.
+
+INSERT INTO dim_diagnosis (diagnosis_sk, icd10_code, description, category)
+VALUES (-1, 'N/A', 'Not Applicable', 'N/A');
+
+INSERT INTO dim_provider (
+    provider_sk, provider_id, provider_name, specialty,
+    network_status, effective_start, effective_end, is_current
+)
+VALUES (-1, 'N/A', 'N/A', 'N/A', 'N/A', '1900-01-01', '9999-12-31', TRUE);
+
+

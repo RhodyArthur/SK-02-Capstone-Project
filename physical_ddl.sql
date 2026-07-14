@@ -161,3 +161,17 @@ CREATE TABLE fact_claim_line (
 );
 
 
+-- ============================================================
+-- 4. INDEXES ON FACT TABLE FOREIGN KEYS
+-- ============================================================
+
+-- fact_claim
+CREATE INDEX idx_claims_date       ON fact_claim(date_sk);
+CREATE INDEX idx_claims_member     ON fact_claim(member_sk);
+CREATE INDEX idx_claims_provider   ON fact_claim(provider_sk);
+CREATE INDEX idx_claims_diagnosis  ON fact_claim(diagnosis_sk);
+CREATE INDEX idx_claims_plan       ON fact_claim(plan_sk);
+
+-- fact_claim_line
+CREATE INDEX idx_claims_claim_number ON fact_claim_line(claim_number);
+CREATE INDEX idx_claims_procedure    ON fact_claim_line(procedure_sk);

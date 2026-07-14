@@ -114,3 +114,50 @@ INSERT INTO dim_provider (
 VALUES (-1, 'N/A', 'N/A', 'N/A', 'N/A', '1900-01-01', '9999-12-31', TRUE);
 
 
+-- ============================================================
+-- 3. FACT TABLES
+-- ============================================================
+
+-- ---------- fact_claim ----------
+-- Grain: one row per claim, submitted for one member visit/encounter.
+-- Type: Transaction fact table.
+CREATE TABLE fact_claim (
+    -- degenerate dimension serves as the primary key — no separate surrogate
+    -- claim_id needed, since claim_number already uniquely identifies one claim
+    claim_number      VARCHAR(20)   PRIMARY KEY,
+
+    -- foreign keys to dimensions (all NOT NULL — every claim must resolve to
+    -- something, even if that something is the -1 "Not Applicable" placeholder row)
+    member_sk         INT           NOT NULL REFERENCES dim_member(member_sk),
+    provider_sk       INT           NOT NULL REFERENCES dim_provider(provider_sk),
+    diagnosis_sk      INT           NOT NULL REFERENCES dim_diagnosis(diagnosis_sk),
+    plan_sk           INT           NOT NULL REFERENCES dim_plan(plan_sk),
+    date_sk           INT           NOT NULL REFERENCES dim_date(date_sk),
+
+    -- measures: NOT NULL, using 0 as a real value rather than NULL meaning "unknown"
+    billed_amount     DECIMAL(10,2) NOT NULL,
+    paid_amount       DECIMAL(10,2) NOT NULL,
+    allowed_amount    DECIMAL(10,2) NOT NULL
+);
+
+-- ---------- fact_claim_line ----------
+-- Grain: one row per service line, within one claim.
+-- Type: Transaction fact table (multiple rows per claim reflect grain, not process stages).
+CREATE TABLE fact_claim_line (
+    -- composite primary key: claim_number ties back to the parent claim,
+    -- line_number (degenerate dimension) distinguishes lines within that claim
+    claim_number         VARCHAR(20)   NOT NULL REFERENCES fact_claim(claim_number),
+    line_number          SMALLINT      NOT NULL,
+
+    -- foreign key to the line-specific dimension
+    procedure_sk         INT           NOT NULL REFERENCES dim_procedure(procedure_sk),
+
+    -- measures
+    units                SMALLINT      NOT NULL,
+    line_billed_amount   DECIMAL(10,2) NOT NULL,
+    line_paid_amount     DECIMAL(10,2) NOT NULL,
+
+    PRIMARY KEY (claim_number, line_number)
+);
+
+

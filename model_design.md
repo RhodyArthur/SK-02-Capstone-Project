@@ -21,8 +21,6 @@ Both grains are declared at the most atomic level available in the source system
 | `fact_claim` | **Transaction** | Each claim represents a single, discrete event — submitted once at the time of a visit/encounter. It is not a recurring state snapshot, and it is not a multi-stage process collapsed into one evolving row. |
 | `fact_claim_line` | **Transaction** | Each service line is written once, at claim submission time, and is never revisited or updated through subsequent stages. The 1-to-many relationship with `fact_claim` (multiple lines per claim) is a grain decision, not evidence of an accumulating process. |
 
-**Note:** Claims *do* move through a real-world process (submitted → adjudicated → paid), which could justify a separate **accumulating snapshot** fact table in a future iteration (e.g., `fact_claim_lifecycle`) if the business needs to measure cycle-time between adjudication stages. That is out of scope for the two fact tables requested here.
-
 ---
 
 ## 3. Dimension List — SCD Type Decisions

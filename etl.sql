@@ -41,7 +41,58 @@ FROM GENERATE_SERIES(
 -- ============================================================
 -- 2. dim_member (SCD Type 2)
 -- ============================================================
--- (to be filled in)
+-- Staging table assumed:
+--   stg_member(member_id, name, date_of_birth, gender, plan_id, state, zip_code)
+-- Tracked attributes: plan_id, state, zip_code
+ 
+BEGIN;
+ 
+-- Step 1: Close (expire) current rows whose tracked attributes changed
+UPDATE dim_member dm
+SET effective_end = CURRENT_DATE - 1,
+    is_current     = FALSE
+FROM stg_member sm
+WHERE dm.member_id = sm.member_id
+  AND dm.is_current = TRUE
+  AND (
+        dm.plan_id  IS DISTINCT FROM sm.plan_id
+     OR dm.state    IS DISTINCT FROM sm.state
+     OR dm.zip_code IS DISTINCT FROM sm.zip_code
+  );
+ 
+-- Step 2: Insert new current rows — brand-new members, and members just expired above
+INSERT INTO dim_member (
+    member_id, name, date_of_birth, gender,
+    plan_id, state, zip_code,
+    effective_start, effective_end, is_current
+)
+SELECT
+    sm.member_id, sm.name, sm.date_of_birth, sm.gender,
+    sm.plan_id, sm.state, sm.zip_code,
+    CURRENT_DATE, '9999-12-31', TRUE
+FROM stg_member sm
+WHERE NOT EXISTS (
+    -- brand-new member: no row for them exists at all
+    SELECT 1 FROM dim_member dm
+    WHERE dm.member_id = sm.member_id
+)
+OR EXISTS (
+    -- existing member we just expired above: re-insert their new current version
+    SELECT 1 FROM dim_member dm
+    WHERE dm.member_id = sm.member_id
+      AND dm.is_current = FALSE
+      AND dm.effective_end = CURRENT_DATE - 1
+);
+ 
+COMMIT;
+ 
+-- Verification: confirm no member has more than one is_current = TRUE row.
+-- A healthy load returns zero rows.
+SELECT member_id, COUNT(*) AS current_row_count
+FROM dim_member
+WHERE is_current = TRUE
+GROUP BY member_id
+HAVING COUNT(*) > 1;
 
 
 -- ============================================================

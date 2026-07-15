@@ -26,15 +26,15 @@ CREATE TABLE dim_plan (
 -- ---------- dim_diagnosis (Type 1) ----------
 CREATE TABLE dim_diagnosis (
     diagnosis_sk   SERIAL PRIMARY KEY,
-    icd10_code     VARCHAR(10)  NOT NULL,   -- e.g. 'E11.9'
+    icd10_code     VARCHAR(10)  NOT NULL UNIQUE,  -- UNIQUE required for ON CONFLICT upserts
     description    TEXT         NOT NULL,   -- free text, no practical length cap needed
     category       VARCHAR(100) NOT NULL    -- ICD-10 category hierarchy grouping
 );
-
+ 
 -- ---------- dim_procedure (Type 1) ----------
 CREATE TABLE dim_procedure (
     procedure_sk   SERIAL PRIMARY KEY,
-    cpt_code       VARCHAR(5)   NOT NULL,   -- CPT codes are always 5 characters
+    cpt_code       VARCHAR(5)   NOT NULL UNIQUE,  -- UNIQUE required for ON CONFLICT upserts
     description    TEXT         NOT NULL,
     category       VARCHAR(100) NOT NULL
 );

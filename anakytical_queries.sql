@@ -48,7 +48,34 @@ ORDER BY total_paid_amount DESC
 LIMIT 20;
 
 
+-- ============================================================
+-- Q2. Claims paid by ICD-10 diagnosis category, ranked by spend
+-- ============================================================
+-- Business question: "Which diagnosis categories drive the most claims
+-- spend, ranked highest to lowest?" Directly answers Finance's "what did we
+-- pay per diagnosis category last quarter" question, which currently takes
+-- 3 days of manual work against the OLTP system.
+-- The warehouse makes this possible because dim_diagnosis pre-aggregates
+-- ICD-10 codes into their category hierarchy, so a single GROUP BY replaces
+-- what would otherwise require manual ICD-10 category lookups against a
+-- 12,000-row reference table on every run.
 
+WITH claims_paid AS (
+    SELECT dg.category, SUM(fc.paid_amount) AS total_spend
+    FROM fact_claim fc
+    JOIN dim_diagnosis dg ON dg.diagnosis_sk = fc.diagnosis_sk
+    GROUP BY dg.category
+),
+ranked_spend AS (
+    SELECT
+        category,
+        total_spend,
+        RANK() OVER (ORDER BY total_spend DESC) AS spend_rank
+    FROM claims_paid
+)
+SELECT *
+FROM ranked_spend
+ORDER BY spend_rank;
 
 
 -- ============================================================

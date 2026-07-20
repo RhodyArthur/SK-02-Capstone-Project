@@ -81,7 +81,53 @@ ORDER BY spend_rank;
 -- ============================================================
 -- Q3. Member utilization rate by plan type and month (claims per 1,000 members)
 -- ============================================================
--- (to be filled in)
+-- Business question: "How does claims utilization vary by plan type over
+-- time, normalized per 1,000 members?" Powers the Member Utilization
+-- Dashboard, which currently crashes the OLTP database twice a week under
+-- query load.
+-- The warehouse makes this possible because dim_plan and dim_date let this
+-- aggregate across millions of fact_claim rows without touching the live
+-- transactional system at all.
+-- NOTE: distinct member counts use dim_member.member_id, not member_sk —
+-- since dim_member is SCD Type 2, the same real member could carry multiple
+-- member_sk values if their record versioned mid-month; counting by
+-- member_sk risks treating one person as two "distinct members."
+ 
+WITH claims_with_count AS (
+    SELECT
+        pl.plan_type,
+        dd.year,
+        dd.month_number,
+        COUNT(*) OVER (PARTITION BY pl.plan_type, dd.year, dd.month_number) AS claims_count
+    FROM fact_claim fc
+    JOIN dim_plan pl ON pl.plan_sk = fc.plan_sk
+    JOIN dim_date dd ON dd.date_sk = fc.date_sk
+),
+distinct_member_count AS (
+    SELECT
+        pl.plan_type,
+        dd.year,
+        dd.month_number,
+        COUNT(DISTINCT dm.member_id) AS distinct_members
+    FROM fact_claim fc
+    JOIN dim_plan pl   ON pl.plan_sk = fc.plan_sk
+    JOIN dim_date dd   ON dd.date_sk = fc.date_sk
+    JOIN dim_member dm ON dm.member_sk = fc.member_sk
+    GROUP BY pl.plan_type, dd.year, dd.month_number
+)
+SELECT DISTINCT
+    cc.plan_type,
+    cc.year,
+    cc.month_number,
+    cc.claims_count,
+    mc.distinct_members,
+    ROUND((cc.claims_count::NUMERIC / mc.distinct_members) * 1000, 2) AS claims_per_1000_members
+FROM claims_with_count cc
+JOIN distinct_member_count mc
+  ON cc.plan_type = mc.plan_type
+ AND cc.year = mc.year
+ AND cc.month_number = mc.month_number
+ORDER BY cc.year, cc.month_number, cc.plan_type;
 
 
 -- ============================================================

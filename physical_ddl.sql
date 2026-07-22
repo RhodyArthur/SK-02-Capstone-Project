@@ -11,6 +11,16 @@
 
 
 -- ============================================================
+-- ETL control table (referenced throughout Deliverable 3's incremental
+-- loading logic — one row per fact table tracking its watermark)
+-- ============================================================
+CREATE TABLE etl_control (
+    source_table                VARCHAR(100) PRIMARY KEY,
+    last_successful_load_time   TIMESTAMP
+);
+
+
+-- ============================================================
 -- 1. DIMENSION TABLES
 -- ============================================================
 

@@ -193,7 +193,33 @@ ORDER BY dm.member_id, dd.year;
 -- ============================================================
 -- Q6. Monthly claims volume trend with 3-month moving average
 -- ============================================================
--- (to be filled in)
+-- Business question: "Is claims volume trending up, down, or steady over
+-- time, smoothed to reduce month-to-month noise?" Supports capacity
+-- planning and staffing decisions for the Claims Analytics team.
+-- The warehouse makes this possible because dim_date provides a clean,
+-- pre-built year/month grouping key, so trend analysis across millions of
+-- claims requires only a GROUP BY + window function, not custom date-bucket
+-- logic recomputed against the OLTP claims table every time.
+ 
+WITH monthly_total_claims AS (
+    SELECT
+        dd.year,
+        dd.month_number,
+        COUNT(*) AS claim_count
+    FROM fact_claim fc
+    JOIN dim_date dd ON dd.date_sk = fc.date_sk
+    GROUP BY dd.year, dd.month_number
+)
+SELECT
+    year,
+    month_number,
+    claim_count,
+    AVG(claim_count) OVER (
+        ORDER BY year, month_number
+        ROWS BETWEEN 2 PRECEDING AND CURRENT ROW
+    ) AS moving_avg_3mo
+FROM monthly_total_claims
+ORDER BY year, month_number;
 
 
 -- ============================================================

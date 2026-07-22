@@ -225,7 +225,48 @@ ORDER BY year, month_number;
 -- ============================================================
 -- Q7. Member cohort analysis: claims frequency in first 12 months after enrollment
 -- ============================================================
--- (to be filled in)
+-- Business question: "Do members who enrolled in different years use claims
+-- differently during their first 12 months?" Supports underwriting and
+-- forecasting for new member cohorts.
+-- The warehouse makes this possible because dim_member's SCD Type 2 history
+-- lets us identify each member's true original enrollment date (the
+-- earliest effective_start), even though the OLTP system only retains 18
+-- months of plan history and could not answer this for older cohorts at all.
+ 
+WITH member_enrollment AS (
+    SELECT
+        member_id,
+        MIN(effective_start) AS enrollment_date
+    FROM dim_member
+    GROUP BY member_id
+),
+claims_in_first_year AS (
+    SELECT
+        dm.member_id,
+        dd.full_date,
+        fc.claim_number,
+        me.enrollment_date
+    FROM fact_claim fc
+    JOIN dim_member dm        ON dm.member_sk = fc.member_sk
+    JOIN member_enrollment me ON me.member_id = dm.member_id
+    JOIN dim_date dd          ON dd.date_sk = fc.date_sk
+    WHERE dd.full_date BETWEEN me.enrollment_date AND me.enrollment_date + INTERVAL '12 months'
+),
+member_claim_counts AS (
+    SELECT
+        member_id,
+        enrollment_date,
+        COUNT(claim_number) AS claims_in_first_12mo
+    FROM claims_in_first_year
+    GROUP BY member_id, enrollment_date
+)
+SELECT
+    EXTRACT(YEAR FROM enrollment_date) AS cohort_year,
+    AVG(claims_in_first_12mo) AS avg_claims_per_member,
+    COUNT(member_id) AS cohort_size
+FROM member_claim_counts
+GROUP BY cohort_year
+ORDER BY cohort_year;
 
 
 -- ============================================================

@@ -168,7 +168,26 @@ ORDER BY denial_rate DESC;
 -- ============================================================
 -- Q5. Out-of-network cost comparison: paid amount per member per year
 -- ============================================================
--- (to be filled in)
+-- Business question: "How much more does a member pay when they see an
+-- out-of-network provider, compared to in-network, per year?" Supports
+-- member education and network adequacy analysis.
+-- The warehouse makes this possible because fact_claim.provider_sk was
+-- already resolved at ETL load time using a date-range join against the
+-- provider's SCD2 network_status history — so this query gets the
+-- historically-correct in/out-of-network status "for free," just by joining
+-- on provider_sk directly, with no need to redo any date-range logic here.
+ 
+SELECT
+    dm.member_id,
+    dd.year,
+    SUM(CASE WHEN dp.network_status = 'In-Network'     THEN fc.paid_amount ELSE 0 END) AS in_network_paid,
+    SUM(CASE WHEN dp.network_status = 'Out-of-Network' THEN fc.paid_amount ELSE 0 END) AS out_of_network_paid
+FROM fact_claim fc
+JOIN dim_provider dp ON dp.provider_sk = fc.provider_sk
+JOIN dim_member dm   ON dm.member_sk = fc.member_sk
+JOIN dim_date dd     ON dd.date_sk = fc.date_sk
+GROUP BY dm.member_id, dd.year
+ORDER BY dm.member_id, dd.year;
 
 
 -- ============================================================

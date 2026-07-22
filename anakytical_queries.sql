@@ -272,4 +272,40 @@ ORDER BY cohort_year;
 -- ============================================================
 -- Q8. Running cumulative paid amount by provider YTD, flagging $1M crossings
 -- ============================================================
--- (to be filled in)
+-- Business question: "As the year progresses, which providers are
+-- approaching or have crossed $1M in paid claims?" Supports the monthly
+-- contract review process referenced in the Provider Performance Report.
+-- The warehouse makes this possible because fact_claim + dim_date give a
+-- clean, indexed join path for a running total across millions of claims,
+-- computed in one pass instead of repeated OLTP aggregation queries.
+-- NOTE: PARTITION BY includes dd.year (not just provider_id) so the running
+-- total genuinely resets each calendar year — a true "year-to-date" total,
+-- not an all-time cumulative sum.
+ 
+WITH provider_running_total AS (
+    SELECT
+        dp.provider_id,
+        fc.claim_number,
+        dd.full_date,
+        dd.year,
+        fc.paid_amount,
+        SUM(fc.paid_amount) OVER (
+            PARTITION BY dp.provider_id, dd.year
+            ORDER BY dd.full_date
+            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+        ) AS cumulative_paid_ytd
+    FROM fact_claim fc
+    JOIN dim_provider dp ON dp.provider_sk = fc.provider_sk
+    JOIN dim_date dd     ON dd.date_sk = fc.date_sk
+)
+SELECT
+    provider_id,
+    claim_number,
+    full_date,
+    year,
+    paid_amount,
+    cumulative_paid_ytd,
+    CASE WHEN cumulative_paid_ytd >= 1000000 THEN TRUE ELSE FALSE END AS crossed_1m_flag
+FROM provider_running_total
+ORDER BY provider_id, year, full_date;
+ 

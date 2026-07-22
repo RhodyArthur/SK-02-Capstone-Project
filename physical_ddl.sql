@@ -30,7 +30,7 @@ CREATE TABLE dim_diagnosis (
     description    TEXT         NOT NULL,   -- free text, no practical length cap needed
     category       VARCHAR(100) NOT NULL    -- ICD-10 category hierarchy grouping
 );
- 
+
 -- ---------- dim_procedure (Type 1) ----------
 CREATE TABLE dim_procedure (
     procedure_sk   SERIAL PRIMARY KEY,
@@ -105,6 +105,7 @@ FROM GENERATE_SERIES(
         INTERVAL '1 day'
      ) AS d;
 
+
 -- ============================================================
 -- 2. "NOT APPLICABLE" PLACEHOLDER ROWS
 -- ============================================================
@@ -145,7 +146,11 @@ CREATE TABLE fact_claim (
     -- measures: NOT NULL, using 0 as a real value rather than NULL meaning "unknown"
     billed_amount     DECIMAL(10,2) NOT NULL,
     paid_amount       DECIMAL(10,2) NOT NULL,
-    allowed_amount    DECIMAL(10,2) NOT NULL
+    allowed_amount    DECIMAL(10,2) NOT NULL,
+
+    -- claim status/type attributes, added to support denial-rate analysis (Deliverable 4)
+    claim_status      VARCHAR(10)   NOT NULL DEFAULT 'Pending',  -- 'Paid', 'Denied', 'Pending'
+    claim_type        VARCHAR(20)   NOT NULL DEFAULT 'Unknown'   -- 'Inpatient', 'Outpatient', 'Professional'
 );
 
 -- ---------- fact_claim_line ----------

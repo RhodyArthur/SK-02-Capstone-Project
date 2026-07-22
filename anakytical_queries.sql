@@ -133,7 +133,36 @@ ORDER BY cc.year, cc.month_number, cc.plan_type;
 -- ============================================================
 -- Q4. Denied claims analysis: denial rate by provider specialty and claim type
 -- ============================================================
--- (to be filled in)
+-- Business question: "Which provider specialties and claim types have the
+-- highest denial rates?" Helps Claims Analytics identify problem areas for
+-- contract negotiation and process improvement.
+-- The warehouse makes this possible because claim_status and claim_type are
+-- captured once per claim on fact_claim, so denial rate can be computed with
+-- a single GROUP BY instead of joining back to OLTP transaction logs.
+-- NOTE: grouping by specialty (the attribute itself, not provider_sk or
+-- provider_id) is safe here even though dim_provider is SCD2 — multiple
+-- providers or SCD2 versions sharing the same specialty value correctly
+-- combine, since specialty is the analysis dimension, not an identifier
+-- being fragmented.
+ 
+WITH claim_counts AS (
+    SELECT
+        dp.specialty,
+        fc.claim_type,
+        COUNT(*) AS total_claims,
+        COUNT(*) FILTER (WHERE fc.claim_status = 'Denied') AS denied_claims
+    FROM fact_claim fc
+    JOIN dim_provider dp ON dp.provider_sk = fc.provider_sk
+    GROUP BY dp.specialty, fc.claim_type
+)
+SELECT
+    specialty,
+    claim_type,
+    total_claims,
+    denied_claims,
+    ROUND((denied_claims::NUMERIC / total_claims), 2) AS denial_rate
+FROM claim_counts
+ORDER BY denial_rate DESC;
 
 
 -- ============================================================
